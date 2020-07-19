@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object MaterializingStreams extends App {
@@ -28,10 +29,21 @@ object MaterializingStreams extends App {
   val simpleSource = Source(1 to 10)
   val simpleFlow = Flow[Int].map(x => x + 1)
   val simpleSink = Sink.foreach[Int](println)
+  // when in doubt always use viaMat and toMat...it gives you control over which materialized value you get at the end
   val graph = simpleSource.viaMat(simpleFlow)(Keep.right).toMat(simpleSink)(Keep.right) //  simpleSource.viaMat(simpleFlow)((sourceMat, flowMat) => flowMat)
   graph.run().onComplete {
     case Success(_) => "Stream processing finished"
     case Failure(ex) => println(s"Stream processing finished with: $ex")
   }
+
+  // sugars
+  val sum: Future[Int] = Source(1 to 10).runWith(Sink.reduce(_ + _)) // Source(1 to 10).to(Sink.reduce)(Keep.right)
+  Source(1 to 10).runReduce(_ + _)
+
+  // backwards
+  Sink.foreach[Int](println).runWith(Source.single(42)) // source(..).to(sink..).run()
+
+  // both ways
+  Flow[Int].map(x => 2 * x).runWith(simpleSource, simpleSink)
 
 }
