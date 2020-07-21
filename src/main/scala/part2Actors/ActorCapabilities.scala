@@ -1,6 +1,13 @@
 package part2Actors
 
+import akka.actor.FSM.Failure
+import akka.actor.Status.Success
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import part2Actors.ActorCapabilities.BankAccount.{Deposit, Statement, Withdraw}
+import part2Actors.ActorCapabilities.Counter.{Decrement, Increment, Print}
+import part2Actors.ActorCapabilities.Person.LiveTheLife
+
+import scala.collection.mutable.ListBuffer
 
 object ActorCapabilities extends App {
 
@@ -54,5 +61,113 @@ object ActorCapabilities extends App {
 
   case class WirelessPhoneMessage(content: String, ref: ActorRef)
   alice ! WirelessPhoneMessage("Hi", bob) // nosender
+
+  /**
+    * Exercises
+    *
+    * 1. Create a counter actor
+    *   Increment
+    *   Decrement
+    *   Print
+    *
+    *
+    * 2. a BankAccount as actor
+    *   - deposit an amount // design the messages themselves..
+    *   both the receiving and the replies
+    *   and the logic for the bank actor itself...
+    *   probably some internal variable to hold the funds
+    *
+    *   take care of edge cases
+    *
+    *   - withdraw an amount
+    *   - Statement
+    *   replies with
+    *   - Success
+    *   - Failure
+    *
+    *  TIP: Interact with some other kind of actor..
+    *  which will send withdraw / deposit message to bankaccount
+    *  will interpret and print success failure message from bankaccount
+    */
+
+
+  // DOMAIN of the COUNTER
+  object Counter {
+    case object Increment
+    case object Decrement
+    case object Print
+  }
+
+  class Counter extends Actor {
+    import Counter._
+    var count = 0
+
+    override def receive: Receive = {
+      case Increment => count += 1
+      case Decrement => count -= 1
+      case Print => println(s"Counter value is: ${count}")
+      case _ => println("unknown message")
+    }
+  }
+
+  val counterActor = system.actorOf(Props[Counter], "counterActor")
+  (1 to 5).foreach(_ => counterActor ! Increment)
+  (1 to 3).foreach(_ => counterActor ! Decrement)
+  counterActor ! Print
+
+  object BankAccount {
+    case class Withdraw(amount: Int)
+    case class Deposit(amount: Int)
+    case object Statement
+    case class TransactionSuccess(message: String)
+    case class TransactionFailure(reason: String)
+  }
+
+
+  class BankAccount extends Actor {
+    import BankAccount._
+    var funds = 0
+
+    override def receive: Receive = {
+      case Withdraw(money) =>
+        if (money < 0) sender ! TransactionFailure("invalid transaction account")
+        else if (money > funds)
+          sender ! TransactionFailure("insufficient funds")
+        else {
+          funds -= money
+          sender ! TransactionSuccess(s"successfully withdrew ${money}")
+        }
+      case Deposit(money) =>
+        if (money < 0) sender ! TransactionFailure("invalid transaction account")
+        else {
+          funds += money
+          sender ! TransactionSuccess(s"successfully deposited ${money}")
+        }
+      case Statement => sender ! s"Your balance is ${funds}"
+    }
+  }
+
+
+
+  object Person {
+    case class LiveTheLife(account: ActorRef)
+  }
+
+  class Person extends Actor {
+    import Person._
+    override def receive: Receive = {
+      case LiveTheLife(account) =>
+        account ! Deposit(10000)
+        account ! Withdraw(90000)
+        account ! Withdraw(500)
+        account ! Statement
+      case message => println(message.toString)
+    }
+  }
+
+  val account = system.actorOf(Props[BankAccount], "bankAccount")
+  val person = system.actorOf(Props[Person], "billionaire")
+
+  person ! LiveTheLife(account)
 
 }
