@@ -25,6 +25,8 @@ object AdvancedRecap extends App {
     case _ => 0
   }
 
+  println(modifiedList)
+
   // lifting
   val lifted = partialFunction.lift //total function Int => Option[Int]
   lifted(2) // Some(65)
@@ -38,6 +40,7 @@ object AdvancedRecap extends App {
 
   println(pfChain(60))
 
+  println(partialFunction(5))
 
   type ReceiveFunction = PartialFunction[Any, Unit]
 
