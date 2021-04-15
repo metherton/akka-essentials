@@ -1,5 +1,6 @@
 package part2Primer
 
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
@@ -19,6 +20,13 @@ object MaterializingStreams extends App {
   val source = Source(1 to 10)
   val sink = Sink.reduce[Int]((a, b) => a + b)
   val sumFuture = source.runWith(sink)
+
+
+  val longSource: Source[Int, NotUsed] = Source(List(1, 2))
+  longSource.runWith(sink)
+
+  val bla = source.grouped(2).to(Sink.foreach(println))
+  bla.run()
 
   sumFuture.onComplete {
     case Success(value) => println(s"The sum of all element is: $value")
