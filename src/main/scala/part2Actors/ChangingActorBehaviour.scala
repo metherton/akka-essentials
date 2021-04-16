@@ -28,6 +28,25 @@ object ChangingActorBehaviour extends App {
     }
   }
 
+
+  class StatelessFussyKid extends Actor {
+    import FussyKid._
+    import Mom._
+
+    override def receive: Receive = happyReceive
+
+    def happyReceive: Receive = {
+      case Food(VEGETABLE) => context.become(sadReceive, false)// change my receive handler to sadReceive
+      case Food(CHOCOLATE) =>
+      case Ask(_) => sender() ! KidAccept
+    }
+    def sadReceive: Receive = {
+      case Food(VEGETABLE) => // stay sad
+      case Food(CHOCOLATE) => context.become(happyReceive, false)
+      case Ask(_) => sender() ! KidReject
+    }
+  }
+
   object Mom {
     case class MomStart(kidRef: ActorRef)
     case class Food(food: String)
@@ -50,7 +69,29 @@ object ChangingActorBehaviour extends App {
 
   val system = ActorSystem("changingActorBehaviourDemo")
   val fussyKid = system.actorOf(Props[FussyKid])
+  val statelessFussyKid = system.actorOf(Props[StatelessFussyKid])
   val mom = system.actorOf(Props[Mom])
 
-  mom ! MomStart(fussyKid)
+  mom ! MomStart(statelessFussyKid)
+
+  /*
+      mom receives MomStart
+        kid receives Food(veg) => kid will change the handler to sadreceive
+        kid receives Ask(play?)
+        kid responds with the sadreceive handler =>
+      mom receives KidReject
+   */
+
+  /*
+      Food(veg) -> message handler turns to sadReceive - stack.push(sadReceive)
+      Food(chocolate) -> message handler turns to happyReceive - stack.push(happyReceive)
+
+      Stack:
+        1. happyReceive
+        2. sadReceive
+        3. happyRecieve
+
+
+   */
+
 }
