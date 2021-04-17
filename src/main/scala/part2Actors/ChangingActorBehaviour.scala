@@ -143,10 +143,10 @@ object ChangingActorBehaviour extends App {
 
   }
 
-  val counterActor = system.actorOf(Props[Counter], "counterActor")
-  (1 to 5).foreach(_ => counterActor ! Increment)
-  (1 to 3).foreach(_ => counterActor ! Decrement)
-  counterActor ! Print
+//  val counterActor = system.actorOf(Props[Counter], "counterActor")
+//  (1 to 5).foreach(_ => counterActor ! Increment)
+//  (1 to 3).foreach(_ => counterActor ! Decrement)
+//  counterActor ! Print
 
 
 
@@ -160,27 +160,51 @@ object ChangingActorBehaviour extends App {
   case class VoteStatusReply(candidate: Option[String])
 
   class Citizen extends Actor {
-    override def receive: Receive = ??? // TODO
+    var candidate: Option[String] = None
+    override def receive: Receive = {
+      case Vote(c) => this.candidate = Some(c)
+      case VoteStatusRequest => sender() ! VoteStatusReply(candidate)
+    } // TODO
   }
 
   case class AggregateVotes(citizens: Set[ActorRef])
 
   class VoteAggregator extends Actor {
-    override def receive: Receive = ??? // TODO
+
+    var stillWaiting: Set[ActorRef] = Set()
+    var currentStats: Map[String, Int] = Map()
+
+    override def receive: Receive = {
+      case AggregateVotes(citizens) =>
+        stillWaiting = citizens
+        citizens.foreach(citizenRef => citizenRef ! VoteStatusRequest)
+      case VoteStatusReply(None) => // a citizen hasn't voted yet
+        sender() ! VoteStatusRequest // this might end up in infinite loop
+      case VoteStatusReply(Some(candidate)) =>
+        val newStillWaiting = stillWaiting - sender()
+        val currentVoteOfCandidates = currentStats.getOrElse(candidate, 0)
+        currentStats = currentStats + (candidate -> (currentVoteOfCandidates + 1))
+        if (newStillWaiting.isEmpty) {
+          println(s"[aggregator] poll stats: $currentStats")
+        } else {
+          stillWaiting = newStillWaiting
+        }
+
+    } // TODO
   }
 
-//  val alice = system.actorOf(Props[Citizen])
-//  val bob = system.actorOf(Props[Citizen])
-//  val charlie = system.actorOf(Props[Citizen])
-//  val daniel = system.actorOf(Props[Citizen])
-//
-//  alice ! Vote("Martin")
-//  bob ! Vote("Jonas")
-//  charlie ! Vote("Roland")
-//  daniel ! Vote("Roland")
-//
-//  val voteAggregator = system.actorOf(Props[VoteAggregator])
-//  voteAggregator ! AggregateVotes(Set(alice, bob, charlie, daniel))
+  val alice = system.actorOf(Props[Citizen])
+  val bob = system.actorOf(Props[Citizen])
+  val charlie = system.actorOf(Props[Citizen])
+  val daniel = system.actorOf(Props[Citizen])
+
+  alice ! Vote("Martin")
+  bob ! Vote("Jonas")
+  charlie ! Vote("Roland")
+  daniel ! Vote("Roland")
+
+  val voteAggregator = system.actorOf(Props[VoteAggregator])
+  voteAggregator ! AggregateVotes(Set(alice, bob, charlie, daniel))
 
   /*
       Print the status of votes
